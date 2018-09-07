@@ -821,7 +821,7 @@ bot.on('message', msg => {
       }
     }
 
-    if(msg.content.includes("http") && user.id !== '176518088575942656' && user.id !== '164178179802660865' && user.id !== '458543519519342594' && user.id !== '373621597699047424' && user.id !== '482548204185845782' && user.id !== '362909367508533250' && user.id !== '340981780792213504' && user.id !== '366601136305864704' && user.id !== '166382231680450560' && user.id !== '425630354263638018' && user.id !== '108332416086605824' && user.id !== '302050872383242240'){                   //AUTO-MODERATION
+    if(msg.content.includes("http") && userID !== '176518088575942656' && userID !== '164178179802660865' && userID !== '458543519519342594' && userID !== '373621597699047424' && userID !== '482548204185845782' && userID !== '362909367508533250' && userID !== '340981780792213504' && userID !== '366601136305864704' && userID !== '166382231680450560' && userID !== '425630354263638018' && userID !== '108332416086605824' && userID !== '302050872383242240'){                   //AUTO-MODERATION
       var whitelistedQueries = ["youtube.com", "youtu.be", "youtube", "triforce", "force", "raidparty", "concord", "eximius", "cxd", "github", "google", "twitch", "steam", "twitter", "t.co", "discord", "levelup", "thegamewallstudios"],
       whitelistLength = whitelistedQueries.length,
       checkNum = 0

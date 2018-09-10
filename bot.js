@@ -46,7 +46,8 @@ function checkBounty () {
           if (!err) {
             lastMsg.guild.fetchInvites().then(invites => gatherLeaderboard(lastMsg, invites.array())).catch(console.error)
             setTimeout(function () {
-              var channelDebug = lastMsg.guild.channels.find(ch => ch.name === 'bot-testing-🤖')
+              var channelDebug = lastMsg.guild.channels.find(ch => ch.name === 'bot-testing')
+              var channelAnnounce = lastMsg.guild.channels.find(ch => ch.name === '🎁-invite-bounty-🎁')
               const embed = {
                 'color': 3144381,
                 'footer': {
@@ -58,7 +59,7 @@ function checkBounty () {
                 },
                 'fields': [{
                   'name': "This bounty's 5 winners are:",
-                  'value': '**1.** <@' + lastInvitesLeaderboard[0].id + '> - **Prize:** 100 FORCE\n**2.** <@' + lastInvitesLeaderboard[1].id + '> - **Prize:** 50 FORCE\n**3.** <@' + lastInvitesLeaderboard[2].id + '> - **Prize:** 25 FORCE\n**4.** <@' + lastInvitesLeaderboard[3].id + '> - **Prize:** 15 FORCE\n**5.** <@' + lastInvitesLeaderboard[4].id + '> - **Prize:** 10 FORCE\n\nRewards are being distributed!',
+                  'value': '**1.** <@' + lastInvitesLeaderboard[0].id + '> - **Prize:** 100 FORCE\n**2.** <@' + lastInvitesLeaderboard[1].id + '> - **Prize:** 50 FORCE\n**3.** <@' + lastInvitesLeaderboard[2].id + '> - **Prize:** 25 FORCE\n**4.** <@' + lastInvitesLeaderboard[3].id + '> - **Prize:** 15 FORCE\n**5.** <@' + lastInvitesLeaderboard[4].id + '> - **Prize:** 10 FORCE\n\n__Rewards are being distributed!__',
                   'inline': false
                 }]
               }
@@ -68,7 +69,8 @@ function checkBounty () {
               setTimeout(function () { channelDebug.send('ftip <@' + lastInvitesLeaderboard[3].id + '> 15'); removeInvites(lastInvitesLeaderboard[3].id, lastInvitesLeaderboard[3].invites) }, 8000)
               setTimeout(function () { channelDebug.send('ftip <@' + lastInvitesLeaderboard[4].id + '> 10'); removeInvites(lastInvitesLeaderboard[4].id, lastInvitesLeaderboard[4].invites) }, 10000)
               setTimeout(function () { channelDebug.send('**__Invite Bounty Payments are complete!__**\nUse `fbountystart` to start a new bounty') }, 12000)
-              channelDebug.send({ embed })
+              setTimeout(function () { channelAnnounce.send('**__Invite Bounty Payments are complete!__**\nUse command `fbal` to check your earnings!') }, 12000)
+              channelAnnounce.send({ embed })
             }, 5000)
           } else {
             console.log('DB-ERROR: ' + err)
@@ -96,7 +98,7 @@ function removeInvites (id, invites) {
           userData[2] = 'invitesRemoved:' + userInvs.toString()
           fs.writeFile(dataStorageLocation + id + '.txt', userData.join('::::'), function (err) {
             if (!err) {
-              var channelLog = lastMsg.guild.channels.find(ch => ch.name === 'triforce-bot-server-log-🤖')
+              var channelLog = lastMsg.guild.channels.find(ch => ch.name === 'triforce-bot-server-log')
               channelLog.send('Deducted **' + removedInvs.toString() + '** from account **' + id + '**')
             }
           })
@@ -108,8 +110,9 @@ function removeInvites (id, invites) {
 
 bot.on('guildMemberAdd', member => {
   // Send the message to a designated channel on a server:
-  const channel = member.guild.channels.find(ch => ch.name === 'welcome-channel🤗')
-  const channelDebug = member.guild.channels.find(ch => ch.name === 'triforce-bot-server-log-🤖')
+  const channel = member.guild.channels.find(ch => ch.name === 'welcome-channel👋🏼')
+  const channelDebug = member.guild.channels.find(ch => ch.name === 'triforce-bot-server-log')
+  member.addRole("477842664755298306")
   // Do nothing if the channel wasn't found on this server
   if (!channel || member.guild.name !== 'TriForce Tokens™') return
   // Send the message, mentioning the member
@@ -118,8 +121,8 @@ bot.on('guildMemberAdd', member => {
 
 bot.on('guildMemberRemove', member => {
   // Send the message to a designated channel on a server:
-  const channel = member.guild.channels.find(ch => ch.name === 'bye-bitch-👋')
-  const channelDebug = member.guild.channels.find(ch => ch.name === 'triforce-bot-server-log-🤖')
+  const channel = member.guild.channels.find(ch => ch.name === 'bye-bitch')
+  const channelDebug = member.guild.channels.find(ch => ch.name === 'triforce-bot-server-log')
   // Do nothing if the channel wasn't found on this server
   if (!channel || member.guild.name !== 'TriForce Tokens™') return
   // Send the message, mentioning the member
@@ -243,7 +246,7 @@ var lastMsg,
 
 bot.on('message', msg => {
   // MSG PARTS
-  var channelDebug = msg.guild.channels.find(ch => ch.name === 'triforce-bot-server-log-🤖')
+  var channelDebug = msg.guild.channels.find(ch => ch.name === 'triforce-bot-server-log')
   if (msg.guild && msg.guild.name === 'TriForce Tokens™') {
     if (lastMsg === undefined) {
       setInterval(checkBounty, bountyCheckInterval)
@@ -348,7 +351,7 @@ bot.on('message', msg => {
               rainAmount = (Number(parameters[0]) / irLength),
               rainBalance = balance + rainAmount
             isRaining = 1
-            msg.channel.send('Raining **' + rainAmount.toFixed(4) + ' FORCE** ($' + (rainAmount * fiatValue).toFixed(2) + ') to **' + irLength.toString() + '** Active TriForce Members!\n(' + activeUsers + ')')
+            msg.channel.send('Raining **' + rainAmount.toFixed(4) + ' FORCE** ($' + (rainAmount * fiatValue).toFixed(4) + ') to **' + irLength.toString() + '** Active TriForce Members!\n(' + activeUsers + ')')
             var queue = setInterval(function () {
               var timeTillTransaction = ir * 500
               if (activeUsers[ir]) {
@@ -773,9 +776,9 @@ bot.on('message', msg => {
     }
     if (command === 'ftest') {
       if (userID === '458543519519342594' || userID === '176518088575942656' || userID === '362909367508533250' || userID === '373621597699047424') {
-        var channelWelcome = msg.guild.channels.find(ch => ch.name === 'welcome-channel🤗')
-        var channelBye = msg.guild.channels.find(ch => ch.name === 'bye-bitch-👋')
-        var channelDebug = msg.guild.channels.find(ch => ch.name === 'triforce-bot-server-log-🤖')
+        var channelWelcome = msg.guild.channels.find(ch => ch.name === 'welcome-channel👋🏼')
+        var channelBye = msg.guild.channels.find(ch => ch.name === 'bye-bitch')
+        var channelDebug = msg.guild.channels.find(ch => ch.name === 'triforce-bot-server-log')
         channelWelcome.send('test').then(message => message.delete(4000))
         channelBye.send('test').then(message => message.delete(4000))
         channelDebug.send('test').then(message => message.delete(4000))
@@ -822,7 +825,7 @@ bot.on('message', msg => {
     }
 
     if(msg.content.includes("http") && userID !== '176518088575942656' && userID !== '164178179802660865' && userID !== '458543519519342594' && userID !== '373621597699047424' && userID !== '482548204185845782' && userID !== '362909367508533250' && userID !== '340981780792213504' && userID !== '366601136305864704' && userID !== '166382231680450560' && userID !== '425630354263638018' && userID !== '108332416086605824' && userID !== '302050872383242240'){                   //AUTO-MODERATION
-      var whitelistedQueries = ["youtube.com", "youtu.be", "youtube", "triforce", "force", "raidparty", "concord", "eximius", "cxd", "github", "google", "twitch", "steam", "twitter", "t.co", "discord", "levelup", "thegamewallstudios"],
+      var whitelistedQueries = ["youtube.com", "youtu.be", "youtube", "triforce", "force", "raidparty", "concord", "eximius", "cxd", "github", "google", "twitch", "steam", "twitter", "t.co", "discord", "levelup", "thegamewallstudios", "giphy", "tenor", "bitcoin", "btc", "imgur", "reddit"],
       whitelistLength = whitelistedQueries.length,
       checkNum = 0
       for (var i = 0; i < whitelistLength; i++) {

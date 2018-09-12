@@ -38,6 +38,10 @@ var bountyCheckInterval = 30000 // Milliseconds
 var timestamp
 
 function checkBounty () {
+  if (lastMsg && lastMsg.guild) {
+    lastMsg.guild.fetchInvites().then(invites => lastInvites = invites.array()).catch(console.error)
+    console.log('Invite synced successfully, Now reading ' + lastInvites.length + ' in-memory invites')
+  }
   fs.readFile('bounty.txt', 'utf8', function (err, contents) {
     if (!err && timestamp !== undefined && lastMsg) {
       var bountyTimestamp = Number(contents)
@@ -109,23 +113,25 @@ function removeInvites (id, invites) {
 }
 
 bot.on('guildMemberAdd', member => {
-  // Send the message to a designated channel on a server:
   const channel = member.guild.channels.find(ch => ch.name === 'welcome-channel👋🏼')
   const channelDebug = member.guild.channels.find(ch => ch.name === 'triforce-bot-server-log')
-  member.addRole("477842664755298306")
-  // Do nothing if the channel wasn't found on this server
+  const channelTesting = member.guild.channels.find(ch => ch.name === 'bot-testing')
+  if (member.guild.name === 'TriForce Tokens™') {
+    if (member.user.username.toLowerCase().includes('webchain')) {
+      channelTesting.send('Automatically Banned **' + member.guild.username + '**')
+      member.ban()
+      return
+    }
+  }
+  member.addRole('477842664755298306')
   if (!channel || member.guild.name !== 'TriForce Tokens™') return
-  // Send the message, mentioning the member
   member.guild.fetchInvites().then(invites => checkJoinedInvites(member, channelDebug, channel, invites.array())).catch(console.error)
 })
 
 bot.on('guildMemberRemove', member => {
-  // Send the message to a designated channel on a server:
   const channel = member.guild.channels.find(ch => ch.name === 'bye-bitch')
   const channelDebug = member.guild.channels.find(ch => ch.name === 'triforce-bot-server-log')
-  // Do nothing if the channel wasn't found on this server
   if (!channel || member.guild.name !== 'TriForce Tokens™') return
-  // Send the message, mentioning the member
   member.guild.fetchInvites().then(invites => checkLeftInvites(member, channelDebug, channel, invites.array())).catch(console.error)
   channel.send('**' + member.user.username + '** left 👋🏻')
 })
@@ -246,10 +252,20 @@ var lastMsg,
 
 bot.on('message', msg => {
   // MSG PARTS
-  var channelDebug = msg.guild.channels.find(ch => ch.name === 'triforce-bot-server-log')
   if (msg.guild && msg.guild.name === 'TriForce Tokens™') {
+    var channelDebug = msg.guild.channels.find(ch => ch.name === 'triforce-bot-server-log')
     if (lastMsg === undefined) {
       setInterval(checkBounty, bountyCheckInterval)
+      setInterval(function () {
+        var botChannel = lastMsg.guild.channels.find(ch => ch.name === 'bot-spam👍🏼')
+        botChannel.send('**Sending Auto-Rain!** - Next will be in 3 hours')
+        var variableRain = activeUsers.length * 0.025
+        variableRain += 0.5
+        if (variableRain > 1) {
+          variableRain = 1
+        }
+        botChannel.send('frain ' + variableRain.toFixed(2))
+      }, 10800000) // 3 Hours between auto-rains
       channelDebug.send('Bounty Tracking activated on **' + msg.author.username + "**'s message being loaded into memory first, checking bounty conditions on a **" + bountyCheckInterval.toString() + 'ms** interval, current bounty length is **' + bountyLength.toString() + ' seconds**')
     }
     lastMsg = msg
@@ -328,7 +344,12 @@ bot.on('message', msg => {
     if (command === 'factiveusers') {
       if (parameters[0]) {
         if (parameters[0] === 'advanced' || parameters[0] === 'adv') {
-          msg.channel.send('There are **' + activeUsers.length.toString() + '** active TriForce users')
+          var variableRain = activeUsers.length * 0.025
+          variableRain += 0.5
+          if (variableRain > 1) {
+            variableRain = 1
+          }
+          msg.channel.send('There are **' + activeUsers.length.toString() + '** active TriForce users, with the Variable Auto-rain currently being **' + variableRain.toFixed(2) + '** FORCE')
           for (var i = 0; i < activeUsers.length; i++) {
             var displayI = i + 1
             if (activeUsers[i]) {
@@ -337,7 +358,12 @@ bot.on('message', msg => {
           }
         }
       } else {
-        msg.channel.send('There are **' + activeUsers.length.toString() + '** active TriForce users')
+        var variableRain = activeUsers.length * 0.025
+        variableRain += 0.5
+        if (variableRain > 1) {
+          variableRain = 1
+        }
+        msg.channel.send('There are **' + activeUsers.length.toString() + '** active TriForce users, with the Variable Auto-rain currently being **' + variableRain.toFixed(2) + '** FORCE')
       }
   	}
     if (command === 'frain') {
@@ -412,6 +438,11 @@ bot.on('message', msg => {
           'name': 'Invite/Bounty Commands',
           'value': '**finvites** - Shows your Personal Discord Invites statistics\n**ftop** or **fleaderboard** - Shows the Global ' + msg.guild.name + ' Invite Leaderboard, the top 5 on this leaderboard are eligible for Bounty rewards',
           'inline': false
+    				},
+        {
+          'name': 'Twitch Commands',
+          'value': '**ftwitchlookup <twitch-username>** - Searches for the specified Twitch channel, displaying statistics and stream-information if live\n**ftwitch** - [Verified-Streamers-Only!] Searches for your own channel on Twitch, quicker and easier than **ftwitchlookup**',
+          'inline': false
     				}]
       }
       msg.channel.send({ embed })
@@ -426,7 +457,7 @@ bot.on('message', msg => {
 
     if (msg.guild) {								// USER-BASED COMMANDS
       if (command === 'fbal') {
-        if (!parameters[0] && balance) {
+        if (!parameters[0]) {
           const embed = {
             'color': 3144381,
             'footer': {
@@ -824,21 +855,21 @@ bot.on('message', msg => {
       }
     }
 
-    if(msg.content.includes("http") && userID !== '176518088575942656' && userID !== '164178179802660865' && userID !== '458543519519342594' && userID !== '373621597699047424' && userID !== '482548204185845782' && userID !== '362909367508533250' && userID !== '340981780792213504' && userID !== '366601136305864704' && userID !== '166382231680450560' && userID !== '425630354263638018' && userID !== '108332416086605824' && userID !== '302050872383242240'){                   //AUTO-MODERATION
-      var whitelistedQueries = ["youtube.com", "youtu.be", "youtube", "triforce", "force", "raidparty", "concord", "eximius", "cxd", "github", "google", "twitch", "steam", "twitter", "t.co", "discord", "levelup", "thegamewallstudios", "giphy", "tenor", "bitcoin", "btc", "imgur", "reddit"],
-      whitelistLength = whitelistedQueries.length,
-      checkNum = 0
+    if (msg.content.includes('http') && userID !== '176518088575942656' && userID !== '164178179802660865' && userID !== '458543519519342594' && userID !== '373621597699047424' && userID !== '482548204185845782' && userID !== '362909367508533250' && userID !== '340981780792213504' && userID !== '366601136305864704' && userID !== '166382231680450560' && userID !== '425630354263638018' && userID !== '108332416086605824' && userID !== '302050872383242240') { // AUTO-MODERATION
+      var whitelistedQueries = ['youtube.com', 'youtu.be', 'youtube', 'triforce', 'force', 'raidparty', 'concord', 'eximius', 'cxd', 'github', 'google', 'twitch', 'steam', 'twitter', 't.co', 'discord', 'levelup', 'thegamewallstudios', 'giphy', 'tenor', 'bitcoin', 'btc', 'imgur', 'reddit'],
+        whitelistLength = whitelistedQueries.length,
+        checkNum = 0
       for (var i = 0; i < whitelistLength; i++) {
         if (msg.content.toLowerCase().includes(whitelistedQueries[i])) {
-          checkNum ++
+          checkNum++
         }
       }
-      setTimeout(function(){
-        if(checkNum === 0){
-          msg.reply("**Message Deleted**, URL detected was not in the whitelist")
+      setTimeout(function () {
+        if (checkNum === 0) {
+          msg.reply('**Message Deleted**, URL detected was not in the whitelist')
           msg.delete(250)
         }
-      },25)
+      }, 25)
     }
   }, 20)
 })
@@ -923,13 +954,13 @@ function gatherLeaderboard (msg, invites) {
             }
           }
           var user = {id: invites[i].inviter.id, name: invites[i].inviter.username, invites: invitesNum}
-          if (user.id !== '176518088575942656' && user.id !== '164178179802660865' && user.id !== '458543519519342594' && user.id !== '373621597699047424' && user.id !== '482548204185845782' && user.id !== '362909367508533250' && user.id !== '340981780792213504' && user.id !== '366601136305864704' && user.id !== '166382231680450560' && user.id !== '425630354263638018' && user.id !== '108332416086605824' && user.id !== '302050872383242240') {
+          if (user.id !== '176518088575942656' && user.id !== '315905683902038017' && user.id !== '283031595722473473' && user.id !== '153981101868580864' && user.id !== '164178179802660865' && user.id !== '458543519519342594' && user.id !== '373621597699047424' && user.id !== '482548204185845782' && user.id !== '362909367508533250' && user.id !== '340981780792213504' && user.id !== '366601136305864704' && user.id !== '166382231680450560' && user.id !== '425630354263638018' && user.id !== '108332416086605824' && user.id !== '302050872383242240') {
 					  sortedUsers.push(user)
           }
           i++
         } else {
           var user = {id: invites[i].inviter.id, name: invites[i].inviter.username, invites: invites[i].uses}
-          if (user.id !== '176518088575942656' && user.id !== '164178179802660865' && user.id !== '458543519519342594' && user.id !== '373621597699047424' && user.id !== '482548204185845782' && user.id !== '362909367508533250' && user.id !== '340981780792213504' && user.id !== '366601136305864704' && user.id !== '166382231680450560' && user.id !== '425630354263638018' && user.id !== '108332416086605824' && user.id !== '302050872383242240') {
+          if (user.id !== '176518088575942656' && user.id !== '315905683902038017' && user.id !== '283031595722473473' && user.id !== '153981101868580864' && user.id !== '164178179802660865' && user.id !== '458543519519342594' && user.id !== '373621597699047424' && user.id !== '482548204185845782' && user.id !== '362909367508533250' && user.id !== '340981780792213504' && user.id !== '366601136305864704' && user.id !== '166382231680450560' && user.id !== '425630354263638018' && user.id !== '108332416086605824' && user.id !== '302050872383242240') {
 					  sortedUsers.push(user)
           }
           i++

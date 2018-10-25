@@ -1,17 +1,32 @@
 const Discord = require('discord.js')
 const fs = require('fs')
-const ytdl = require('ytdl-core')
-const streamOptions = { seek: 0, volume: 1 }
+const TwitchClient = require('twitch').default
+var moment = require('moment')
 
 const RapidAPI = new require('rapidapi-connect')
 const rapid = new RapidAPI('triforce_tokens_5b904292e4b005bfb67b04c1', '8d97b53e-40bb-496c-8788-1df23c137c00')
 
+const clientId = 'd6g6o112aam5s8q2di888us9o3kuyh'
+const accessToken = 'meowmeow113'
+const twitchClient = TwitchClient.withCredentials(clientId, accessToken)
+
+var twitchLookupInterval = 120000
+
+
+async function getStream(userName) {
+	try {
+		const user = await twitchClient.users.getUserByName(userName)
+		var stream = await user.getStream()
+		return stream
+	} catch (e) {
+		return false
+	}
+}
+
 var bot = new Discord.Client()
 
 bot.on('ready', function () {
-  console.log(
-    'TriForce Bot Logged in! Serving in ' + bot.guilds.array().length + ' servers'
-  )
+  console.log('TriForce Bot Logged in! Serving in ' + bot.guilds.array().length + ' servers')
   bot.user.setActivity('Intialized!')
   var text = ['TriForce <3', 'TriForce <33', 'TriForce <333', 'TriForce <33']
   var counter = 0
@@ -27,20 +42,22 @@ bot.on('ready', function () {
 })
 
 // DATABASE INFORMATION
-var dataStorageLocation = 'C:/Users/Administrator/Concord_Services/FORCE-Bot/users/' /* Location of the User-Account DB, very important */
+var dataStorageLocation = 'users/', /* Location of the User-Account DB, very important */
+ 		fiatValue = 0.15
 
-var fiatValue = 0.15
+// TWITCH REWARD VARIABLES
+var perViewerRewards = 0.125,
+		perFollowerReduction = 0.005
 
 // INVITE BOUNTY
-var bountyLength = 604800 // In Seconds
-var bountyCheckInterval = 30000 // Milliseconds
-
-var timestamp
+var bountyLength = 604800, // In Seconds
+ 		bountyCheckInterval = 30000, // Milliseconds
+ 		timestamp
 
 function checkBounty () {
   if (lastMsg && lastMsg.guild) {
     lastMsg.guild.fetchInvites().then(invites => lastInvites = invites.array()).catch(console.error)
-    console.log('Invite synced successfully, Now reading ' + lastInvites.length + ' in-memory invites')
+    //console.log('Invites synced successfully, Now reading ' + lastInvites.length + ' in-memory invites')
   }
   fs.readFile('bounty.txt', 'utf8', function (err, contents) {
     if (!err && timestamp !== undefined && lastMsg) {
@@ -118,7 +135,7 @@ bot.on('guildMemberAdd', member => {
   const channelTesting = member.guild.channels.find(ch => ch.name === 'bot-testing')
   if (member.guild.name === 'TriForce Tokens™') {
     if (member.user.username.toLowerCase().includes('webchain')) {
-      channelTesting.send('Automatically Banned **' + member.guild.username + '**')
+      channelTesting.send('Automatically Banned **' + member.user.username + '**')
       member.ban()
       return
     }
@@ -246,9 +263,168 @@ function sendJoinMsg (member, channel, userData, invites) {
   }, 5)
 }
 
+var liveStreamers = []
+
+function checkTwitchUsers () {
+	if (lastMsg) {
+	fs.readdir(dataStorageLocation, (err, files) => {
+		var allStreamers = []
+		var dbLength = files.length
+		var streamerLength = 0
+		var i = 0
+		var ii = 0
+		for (i = 0; i < dbLength; i++) {
+			if (files[i].endsWith("twitch.txt")) {
+				allStreamers.push(files[i])
+			}
+		}
+		streamerLength = allStreamers.length
+		var trackQueue = setInterval(function(){
+			var streamerID = allStreamers[ii]
+			fs.readFile(dataStorageLocation + streamerID, 'utf8', function (err, filedata) {
+	      if (!err) {
+					getStream(filedata).then(data => {
+						if (data && data !== null && data._data && data._data !== null && data.channel) {
+							var iii = 0
+							var isFound = 0
+							var foundNum = 0
+							var liveLength = liveStreamers.length
+							if (liveLength === 0) {
+								console.log(data.channel.displayName+" is live!")
+								liveStreamers.push({id:streamerID, minutesStreamed:2, username:filedata, highestViewers:data.viewers, followers:data.channel.followers, game:data.game})
+								livestreamAlert(data)
+							} else {
+								for (iii = 0; iii < liveLength; iii++) {
+									if (liveStreamers[iii].id === streamerID) {
+										isFound = 1
+										foundNum = iii
+									}
+								}
+								if (isFound === 0) {
+									liveStreamers.push({id:streamerID, minutesStreamed:2, username:filedata, highestViewers:data.viewers, followers:data.channel.followers, game:data.game})
+									console.log(data.channel.displayName+" is live!\nliveStreamers: "+JSON.stringify(liveStreamers))
+									livestreamAlert(data)
+								} else {
+									if (liveStreamers[foundNum].id !== "offline") {
+										liveStreamers[foundNum].minutesStreamed += 2
+										if (data.viewers > liveStreamers[foundNum].highestViewers) {
+											liveStreamers[foundNum].highestViewers = data.viewers
+										}
+										console.log("Adding 2 minutes onto "+liveStreamers[foundNum].username+"'s stream because they're still live, total is "+liveStreamers[foundNum].minutesStreamed+' minutes')
+									} else {
+										liveStreamers.push({id:streamerID, minutesStreamed:2, username:filedata, highestViewers:data.viewers, followers:data.channel.followers, game:data.game})
+										console.log(data.channel.displayName+" is live!\nliveStreamers: "+JSON.stringify(liveStreamers))
+										livestreamAlert(data)
+									}
+								}
+							}
+							if (ii > streamerLength) {
+								clearInterval(trackQueue)
+							}
+						} else {
+							var iii = 0
+							var liveLength = liveStreamers.length
+							for (iii = 0; iii < liveLength; iii++) {
+								if (liveStreamers[iii].id === streamerID && liveStreamers[iii].id !== "offline") {
+									var timeCalc = liveStreamers[iii].minutesStreamed / 60
+									var followerReduction = liveStreamers[iii].followers * perFollowerReduction
+									var reducedViewerReward = perViewerRewards / 4
+									var rewards = (liveStreamers[iii].highestViewers * perViewerRewards) - followerReduction
+									rewards = rewards * timeCalc
+									if(rewards < 0){
+										rewards = 0
+										if(liveStreamers[iii].highestViewers >= 5){
+											rewards = reducedViewerReward * liveStreamers[iii].highestViewers
+										}
+									}
+
+									if (liveStreamers[iii].game.includes("Eximius") === false) {
+										rewards = rewards / 4
+										if (rewards < 0) {
+											rewards = 0
+										}
+									}
+
+									rewards = Number(rewards.toFixed(2))
+
+									var channelDebug = lastMsg.guild.channels.find(ch => ch.name === 'bot-testing')
+									channelDebug.send('**Twitch Livestream payout for '+liveStreamers[iii].username+':**\n\nEarnings this stream: '+rewards+'\nMinutes streamed: '+liveStreamers[iii].minutesStreamed+'\nHighest viewercount this stream: '+liveStreamers[iii].highestViewers+'\nGame Played: '+liveStreamers[iii].game)
+									channelDebug.send('ftip <@'+streamerID.replace("twitch.txt","")+'> '+rewards)
+									var userProfile = lastMsg.guild.members.find('id', liveStreamers[iii].id.replace("twitch.txt",""))
+									var bonusMsg = "Your twitch rewards for this stream had no bonuses applied.\n**Tip:** Streaming __Eximius: Seize the Frontline__ earns you a **4x** stream payout bonus!"
+									if (liveStreamers[iii].game.includes("Eximius")) {
+										bonusMsg = "Yuhu! Your twitch rewards for this stream were increased by **4x** because you played **Eximius: Seize the Frontline**"
+									}
+									userProfile.send("Hey "+liveStreamers[iii].username+"! Your stream was great! Here's some of your statistics:\n\n**Minutes Streamed: **"+liveStreamers[iii].minutesStreamed+"\n**Highest Live-Viewer Count: **"+liveStreamers[iii].highestViewers+"\n**Game Played: **"+liveStreamers[iii].game+"\n**FORCE Earnings: **"+rewards+"\n\n"+bonusMsg)
+									console.log(liveStreamers[iii].username+" has stopped streaming after "+liveStreamers[iii].minutesStreamed+" minutes!\nEarnings: "+rewards+" FORCE\nHighest viewer count: "+liveStreamers[iii].highestViewers+" viewers\n")
+									liveStreamers[iii].id = "offline"
+								}
+							}
+						}
+					})
+					ii++
+				} else {
+					console.log("Error pulling "+allStreamers[ii]+"'s Twitch file")
+					clearInterval(trackQueue)
+				}
+			})
+		},3500)
+	})
+}
+}
+
+function livestreamAlert (data) {
+	if (lastMsg) {
+		var alertChannel = lastMsg.guild.channels.find(ch => ch.name === 'streamers-only-📺-🎮')
+		var desc = data.channel.description
+		if(desc === "" || desc === null || desc === undefined){
+			desc = data.channel.displayName+" doesn't have a channel description"
+		}
+		const embed = {
+			'color': 3144381,
+			'footer': {
+				'icon_url': 'https://cdn.discordapp.com/emojis/467170811300675614.png',
+				'text': 'TriForce Tokens - Twitch Integrated Gaming Service'
+			},
+			'thumbnail': {
+				'url': data.channel.logo
+			},
+			'author': {
+				'name': data.channel.displayName + "'s Twitch Channel"
+			},
+			'fields': [{
+				'name': 'Followers:',
+				'value': data.channel.followers,
+				'inline': true
+			}, {
+				'name': 'Total Views:',
+				'value': data.channel.views,
+				'inline': true
+			}, {
+				'name': 'Description:',
+				'value': desc,
+				'inline': false
+			}, {
+				'name': 'Game Information:',
+				'value': 'Currently playing **' + data.game + '** on their stream',
+				'inline': false
+			}, {
+				'name': 'Stream Information:',
+				'value': '[' + data.channel.status + '](' + data.channel.url + ')\nCurrently with **' + data.viewers + ' Live Viewers**\nAn Average Stream FPS of **' + data._data.average_fps.toFixed(0) + ' FPS**',
+				'inline': false
+			}]
+		}
+		alertChannel.send('__**'+data.channel.displayName+'** has started streaming!__')
+		alertChannel.send({ embed })
+	}
+}
+
+setInterval(checkTwitchUsers, twitchLookupInterval)
+
 var lastMsg,
   activeUsers = [],
-  isRaining = 0
+  isRaining = 0,
+	canWarnAboutError = 1
 
 bot.on('message', msg => {
   // MSG PARTS
@@ -266,7 +442,7 @@ bot.on('message', msg => {
         }
         botChannel.send('frain ' + variableRain.toFixed(2))
       }, 10800000) // 3 Hours between auto-rains
-      channelDebug.send('Bounty Tracking activated on **' + msg.author.username + "**'s message being loaded into memory first, checking bounty conditions on a **" + bountyCheckInterval.toString() + 'ms** interval, current bounty length is **' + bountyLength.toString() + ' seconds**')
+      channelDebug.send('First message locked into memory, booting up tracking systems.\nChecking bounty conditions on a **' + bountyCheckInterval.toString() + 'ms** interval, current bounty length is **' + bountyLength.toString() + ' seconds**\nTracking twitch streamers at an interval of **' + twitchLookupInterval.toString() + 'ms**')
     }
     lastMsg = msg
   }
@@ -291,11 +467,15 @@ bot.on('message', msg => {
     if (err) {
       fs.writeFile(dataStorageLocation + userID + '.txt', userID + '::::bal:0::::invitesRemoved:0::::inviter:none', function (err) {
         if (err) {
-          msg.reply('Database error - Please alert Developer immediately')
+					if (msg.author.bot === false && canWarnAboutError === 1) {
+          	msg.reply('Database error - Please alert Developer immediately')
+						canWarnAboutError = 0
+					}
         } else {
           console.log('Database Account created for ' + msg.author.username + ' at ' + new Date())
           userData = [userID, 'bal:0', 'invitesRemoved:0']
           balance = Number(userData[1].replace('bal:', ''))
+					processMessage (command, msg, parameters, userData, username, userID, balance)
         }
       })
     } else {
@@ -309,6 +489,7 @@ bot.on('message', msg => {
               msg.reply('Database error - Please alert Developer immediately')
             } else {
               console.log('Database Account UPGRADED for ' + msg.author.username + ' at ' + new Date())
+							processMessage (command, msg, parameters, userData, username, userID, balance)
             }
           })
         }
@@ -319,13 +500,17 @@ bot.on('message', msg => {
               msg.reply('Database error - Please alert Developer immediately')
             } else {
               console.log('Database Account UPGRADED for ' + msg.author.username + ' at ' + new Date())
+							processMessage (command, msg, parameters, userData, username, userID, balance)
             }
           })
         }
-      }
+      } else {
+				processMessage (command, msg, parameters, userData, username, userID, balance)
+			}
     }
   })
-  setTimeout(function () {
+})
+  function processMessage (command, msg, parameters, userData, username, userID, balance){
     // ACTIVITY TRACKING && Rains
     var ia,
       isInList = 0,
@@ -335,11 +520,9 @@ bot.on('message', msg => {
         isInList = 1
       }
     }
-    setTimeout(function () {
-      if (isInList === 0 && msg.author.bot === false) {
-        activeUsers.push(msg.author)
-      }
-    }, 20)
+    if (isInList === 0 && msg.author.bot === false) {
+      activeUsers.push(msg.author)
+    }
 
     if (command === 'factiveusers') {
       if (parameters[0]) {
@@ -379,7 +562,7 @@ bot.on('message', msg => {
             isRaining = 1
             msg.channel.send('Raining **' + rainAmount.toFixed(4) + ' FORCE** ($' + (rainAmount * fiatValue).toFixed(4) + ') to **' + irLength.toString() + '** Active TriForce Members!\n(' + activeUsers + ')')
             var queue = setInterval(function () {
-              var timeTillTransaction = ir * 500
+              var timeTillTransaction = ir * 100
               if (activeUsers[ir]) {
                 sendFunds(rainMsg, rainMsg.author.id, activeUsers[ir].id, rainAmount, rainData, rainBalance, 'rain')
                 rainBalance -= rainAmount
@@ -389,7 +572,7 @@ bot.on('message', msg => {
                 msg.channel.send('Rain Finished!')
                 isRaining = 0
               }
-            }, 500)
+            }, 100)
           } else {
             msg.reply('A rain is already in progress! Please wait for the `Rain Finished!` message')
           }
@@ -450,7 +633,7 @@ bot.on('message', msg => {
     if (command === 'flambo') {
       msg.reply({files: ['https://proxy.duckduckgo.com/iu/?u=http%3A%2F%2Fwww.stickpng.com%2Fassets%2Fimages%2F580b585b2edbce24c47b2c83.png']})
     }
-    if (command === 'freboot' && userID === '176518088575942656') {
+    if (command === 'freboot' && userID === '488377416163786753') {
       msg.reply('Rebooting!')
       setTimeout(function () { process.exit() }, 250)
     }
@@ -478,7 +661,7 @@ bot.on('message', msg => {
           }
           msg.channel.send({ embed })
         } else {
-          if (parameters[0] && userID === '458543519519342594' || userID === '176518088575942656' || userID === '362909367508533250' || userID === '373621597699047424') {
+          if (parameters[0] && userID === '458543519519342594' || userID === '488377416163786753' || userID === '362909367508533250' || userID === '373621597699047424') {
             var checkUser = parameters[0].replace('<@', '').replace('!', '').replace('>', '')
             if (checkUser.length === 18) {
               fs.readFile(dataStorageLocation + checkUser + '.txt', 'utf8', function (err, dataa) {
@@ -643,43 +826,71 @@ bot.on('message', msg => {
       })
     }
     if (command === 'ftwitchlookup') {
-      rapid.call('TwitchTV', 'getSingleStream', {
-        'channel': parameters[0],
-        'clientId': 'd6g6o112aam5s8q2di888us9o3kuyh'
+			getStream(parameters[0]).then(data => {
+				if(data && data !== null && data._data && data._data !== null && data.channel){
+					var desc = data.channel.description
+					if(desc === "" || desc === null || desc === undefined){
+						desc = data.channel.displayName+" doesn't have a channel description"
+					}
+					var timeCalcText = moment(data._data.created_at.replace("T","-").replace("Z",""), "YYYY-MM-DD-hh-mm-ss").fromNow().replace("ago", ""),
+							timeCalc = 0
 
-      }).on('success', (payload) => {
-        if (payload.stream && payload.stream !== null && payload.stream !== undefined) {
-          const embed = {
-            'color': 3144381,
-            'footer': {
-              'icon_url': 'https://cdn.discordapp.com/emojis/467170811300675614.png',
-              'text': 'TriForce Tokens - Twitch Integrated Gaming Service'
-            },
-            'thumbnail': {
-              'url': payload.stream.channel.logo
-            },
-            'author': {
-              'name': payload.stream.channel.display_name + "'s Twitch Channel"
-            },
-            'fields': [{
-              'name': 'Followers:',
-              'value': payload.stream.channel.followers,
-              'inline': true
-            }, {
-              'name': 'Total Views:',
-              'value': payload.stream.channel.views,
-              'inline': true
-            }, {
-              'name': 'Game Information:',
-              'value': 'Currently playing **' + payload.stream.channel.game + '** on their stream',
-              'inline': false
-            }, {
-              'name': 'Stream Information:',
-              'value': '[' + payload.stream.channel.status + '](' + payload.stream.channel.url + ')\nCurrently with **' + payload.stream.viewers + ' Live Viewers** and an Average Stream FPS of **' + payload.stream.average_fps + ' FPS**',
-              'inline': false
-            }]
-          }
-          msg.channel.send({ embed })
+					//Rewards Calcs
+					if(timeCalcText.includes("hours")){
+						timeCalc = Number(timeCalcText.replace(" hours","")) - 2
+					}
+					var followerReduction = data.channel.followers * perFollowerReduction
+					var reducedViewerReward = perViewerRewards / 4
+					var rewards = (data.viewers * perViewerRewards) - followerReduction
+					rewards = rewards * timeCalc
+					if(rewards < 0){
+						rewards = 0
+						if(data.viewers >= 5){
+							rewards = reducedViewerReward * data.viewers
+						}
+					}
+
+					rewards = Number(rewards.toFixed(2))
+
+				const embed = {
+					'color': 3144381,
+					'footer': {
+						'icon_url': 'https://cdn.discordapp.com/emojis/467170811300675614.png',
+						'text': 'TriForce Tokens - Twitch Integrated Gaming Service'
+					},
+					'thumbnail': {
+						'url': data.channel.logo
+					},
+					'author': {
+						'name': data.channel.displayName + "'s Twitch Channel"
+					},
+					'fields': [{
+						'name': 'Followers:',
+						'value': data.channel.followers,
+						'inline': true
+					}, {
+						'name': 'Total Views:',
+						'value': data.channel.views,
+						'inline': true
+					}, {
+						'name': 'Description:',
+						'value': desc,
+						'inline': false
+					}, {
+						'name': 'Game Information:',
+						'value': 'Currently playing **' + data.game + '** on their stream',
+						'inline': false
+					}, {
+						'name': 'Stream Information:',
+						'value': '[' + data.channel.status + '](' + data.channel.url + ')\nCurrently with **' + data.viewers + ' Live Viewers**\nAn Average Stream FPS of **' + data._data.average_fps.toFixed(0) + ' FPS**\nHas been streaming for **'+timeCalcText+'**',
+						'inline': false
+					}, {
+						'name': 'Rewards:',
+						'value': data.channel.displayName+'\'s current Stats has earned them **'+rewards+' FORCE** ($' + (rewards * fiatValue).toFixed(2) + ')',
+						'inline': false
+					}]
+				}
+				msg.channel.send({ embed })
         } else {
           rapid.call('TwitchTV', 'getChannel', {
             'channel': parameters[0],
@@ -721,13 +932,15 @@ bot.on('message', msg => {
             msg.reply("Channel **'" + parameters[0] + "'** doesn't seem to exist")
           })
         }
-      }).on('error', (payload) => {
-        msg.reply("Channel **'" + parameters[0] + "'** doesn't seem to exist, or the Twitch API is having issues!")
       })
     }
 
+		if (command === 'flive') {
+			msg.reply("**Raw Livestreamer Tracking Data:**\n```\n"+JSON.stringify(liveStreamers)+"```")
+		}
+
     if (command === 'fkick') {								// ADMIN-ONLY COMMANDS
-      if (userID === '458543519519342594' || userID === '176518088575942656' || userID === '362909367508533250' || userID === '373621597699047424') {
+      if (userID === '458543519519342594' || userID === '488377416163786753' || userID === '362909367508533250' || userID === '373621597699047424') {
         const user = msg.mentions.users.first()
         if (user) {
           const member = msg.guild.member(user)
@@ -747,7 +960,7 @@ bot.on('message', msg => {
       }
     }
     if (command === 'fban') {
-      if (userID === '458543519519342594' || userID === '176518088575942656' || userID === '362909367508533250' || userID === '373621597699047424') {
+      if (userID === '458543519519342594' || userID === '488377416163786753' || userID === '362909367508533250' || userID === '373621597699047424') {
         const user = msg.mentions.users.first()
         if (user) {
           const member = msg.guild.member(user)
@@ -767,7 +980,7 @@ bot.on('message', msg => {
       }
     }
     if (command === 'fclear') {
-      if (userID === '458543519519342594' || userID === '176518088575942656' || userID === '362909367508533250' || userID === '373621597699047424') {
+      if (userID === '458543519519342594' || userID === '488377416163786753' || userID === '362909367508533250' || userID === '373621597699047424') {
         if (parameters[0]) {
           var clearN = Number(parameters[0]) + 1
           if (clearN < 100) {
@@ -784,7 +997,7 @@ bot.on('message', msg => {
       }
     }
     if (command === 'fsay') {
-      if (userID === '458543519519342594' || userID === '176518088575942656' || userID === '362909367508533250' || userID === '373621597699047424') {
+      if (userID === '458543519519342594' || userID === '488377416163786753' || userID === '362909367508533250' || userID === '373621597699047424') {
         if (parameters[0]) {
           msg.channel.send(msg.content.replace('fsay ', ''))
           msg.delete(500)
@@ -792,21 +1005,21 @@ bot.on('message', msg => {
       }
     }
     if (command === 'fid') {
-      if (userID === '458543519519342594' || userID === '176518088575942656' || userID === '362909367508533250' || userID === '373621597699047424') {
+      if (userID === '458543519519342594' || userID === '488377416163786753' || userID === '362909367508533250' || userID === '373621597699047424') {
         if (parameters[0]) {
           msg.channel.send('```\n' + msg.content.replace('fid ', '') + '```')
         }
       }
     }
     if (command === 'freact') {
-      if (userID === '458543519519342594' || userID === '176518088575942656' || userID === '362909367508533250' || userID === '373621597699047424') {
+      if (userID === '458543519519342594' || userID === '488377416163786753' || userID === '362909367508533250' || userID === '373621597699047424') {
         if (parameters[0]) {
           msg.react(parameters[0])
         }
       }
     }
     if (command === 'ftest') {
-      if (userID === '458543519519342594' || userID === '176518088575942656' || userID === '362909367508533250' || userID === '373621597699047424') {
+      if (userID === '458543519519342594' || userID === '488377416163786753' || userID === '362909367508533250' || userID === '373621597699047424') {
         var channelWelcome = msg.guild.channels.find(ch => ch.name === 'welcome-channel👋🏼')
         var channelBye = msg.guild.channels.find(ch => ch.name === 'bye-bitch')
         var channelDebug = msg.guild.channels.find(ch => ch.name === 'triforce-bot-server-log')
@@ -816,7 +1029,7 @@ bot.on('message', msg => {
       }
     }
     if (command === 'fbountystart') {
-      if (userID === '458543519519342594' || userID === '176518088575942656' || userID === '362909367508533250' || userID === '373621597699047424') {
+      if (userID === '458543519519342594' || userID === '488377416163786753' || userID === '362909367508533250' || userID === '373621597699047424') {
         var bountyTimestampy = timestamp + bountyLength
         fs.writeFile('bounty.txt', bountyTimestampy.toFixed(0), function (err) {
           if (!err) {
@@ -844,7 +1057,7 @@ bot.on('message', msg => {
       }
     }
     if (command === 'faddstreamer') {
-      if (parameters[1] && userID === '176518088575942656') {
+      if (parameters[1] && userID === '488377416163786753') {
         fs.writeFile(dataStorageLocation + parameters[0] + 'twitch.txt', parameters[1], function (err) {
           if (!err) {
             msg.channel.send('<@' + parameters[0] + '> now has a Streamer Profile linked to **' + parameters[1] + '**')
@@ -855,78 +1068,85 @@ bot.on('message', msg => {
       }
     }
 
-    if (msg.content.includes('http') && userID !== '176518088575942656' && userID !== '164178179802660865' && userID !== '458543519519342594' && userID !== '373621597699047424' && userID !== '482548204185845782' && userID !== '362909367508533250' && userID !== '340981780792213504' && userID !== '366601136305864704' && userID !== '166382231680450560' && userID !== '425630354263638018' && userID !== '108332416086605824' && userID !== '302050872383242240') { // AUTO-MODERATION
-      var whitelistedQueries = ['youtube.com', 'youtu.be', 'youtube', 'triforce', 'force', 'raidparty', 'concord', 'eximius', 'cxd', 'github', 'google', 'twitch', 'steam', 'twitter', 't.co', 'discord', 'levelup', 'thegamewallstudios', 'giphy', 'tenor', 'bitcoin', 'btc', 'imgur', 'reddit'],
+    if (msg.content.includes('http') && userID !== '488377416163786753' && userID !== '164178179802660865' && userID !== '458543519519342594' && userID !== '373621597699047424' && userID !== '482548204185845782' && userID !== '362909367508533250' && userID !== '340981780792213504' && userID !== '366601136305864704' && userID !== '166382231680450560' && userID !== '425630354263638018' && userID !== '108332416086605824' && userID !== '302050872383242240') { // AUTO-MODERATION
+      var whitelistedQueries = ['youtube.com', 'youtu.be', 'youtube', 'triforce', 'force', 'raidparty', 'concord', 'eximius', 'cxd', 'github', 'google', 'twitch', 'steam', 'twitter', 't.co', 'discord', 'levelup', 'thegamewallstudios', 'giphy', 'tenor', 'bitcoin', 'btc', 'imgur', 'reddit', 'generationzero', 'wikipedia'],
         whitelistLength = whitelistedQueries.length,
         checkNum = 0
-      for (var i = 0; i < whitelistLength; i++) {
-        if (msg.content.toLowerCase().includes(whitelistedQueries[i])) {
-          checkNum++
-        }
+      for (var i = 0; i <= whitelistLength; i++) {
+				if(whitelistedQueries[i]){
+        	if (msg.content.toLowerCase().includes(whitelistedQueries[i])) {
+          	checkNum++
+        	}
+				}else{
+					if (checkNum === 0 || msg.content.includes('discord.gg/')) {
+						if(msg.content.includes('discord.gg/') && msg.channel.name !== "offtopic-links-invites💌"){
+	          	msg.reply('**Message Deleted**, Please do not place Discord Invites in channels other than <#466954899888930817>')
+							msg.delete(250)
+						}else if(checkNum === 0){
+							msg.reply('**Message Deleted**, URL detected was not in the whitelist')
+							msg.delete(250)
+						}
+	        }
+				}
       }
-      setTimeout(function () {
-        if (checkNum === 0) {
-          msg.reply('**Message Deleted**, URL detected was not in the whitelist')
-          msg.delete(250)
-        }
-      }, 25)
     }
-  }, 20)
-})
+}
 
 function sendInvites (msg, invites) {
   var i
   var len = invites.length
   var inviteList = '**' + msg.guild.name + ' Global Invites**\n\n'
-  for (i = 0; i < len; i++) {
-    if (invites[i].inviter && invites[i].uses >= 1) {
-      var pushy = invites[i].inviter.username + "'s Invite with code `" + invites[i].code + '` has been used **' + invites[i].uses + '** times\n'
-      inviteList += pushy
-    }
+  for (i = 0; i <= len; i++) {
+		if(invites[i]){
+    	if (invites[i].inviter && invites[i].uses >= 1) {
+      	var pushy = invites[i].inviter.username + "'s Invite with code `" + invites[i].code + '` has been used **' + invites[i].uses + '** times\n'
+      	inviteList += pushy
+    	}
+		} else {
+			msg.channel.send(inviteList)
+		}
   }
-  setTimeout(function () {
-    msg.channel.send(inviteList)
-  }, 25)
 }
 function sendInvite (msg, userData, invites) {
   var i
   var len = invites.length
   var invitesNum = 0
-  for (i = 0; i < len; i++) {
-    if (invites[i] && invites[i].inviter && invites[i].inviter.id == msg.author.id) {
-      invitesNum += invites[i].uses
-    }
+  for (i = 0; i <= len; i++) {
+		if(invites[i]){
+    	if (invites[i] && invites[i].inviter && invites[i].inviter.id == msg.author.id) {
+      	invitesNum += invites[i].uses
+    	}
+		}else{
+			var removedInvites = Number(userData[2].replace('invitesRemoved:', ''))
+	    var validInvites = invitesNum - removedInvites
+	    const embed = {
+	      'color': 3144381,
+	      'footer': {
+	        'icon_url': 'https://cdn.discordapp.com/emojis/467170811300675614.png',
+	        'text': 'The TriForce Tokens Bot - Invitation and Referral System'
+	      },
+	      'author': {
+	        'name': msg.author.username + "'s TriForce Invite Stats"
+	  					},
+	  					'fields': [{
+	        'name': 'Valid Invites:',
+	        'value': validInvites.toString(),
+	        'inline': true
+	    				},
+	      {
+	        'name': 'Total Invites:',
+	        'value': invitesNum.toString(),
+	        'inline': true
+	    				},
+	      {
+	        'name': 'Leaves:',
+	        'value': removedInvites.toString(),
+	        'inline': true
+	    				}]
+	    }
+	    msg.channel.send({ embed })
+		}
   }
-  setTimeout(function () {
-    var removedInvites = Number(userData[2].replace('invitesRemoved:', ''))
-    var validInvites = invitesNum - removedInvites
-    const embed = {
-      'color': 3144381,
-      'footer': {
-        'icon_url': 'https://cdn.discordapp.com/emojis/467170811300675614.png',
-        'text': 'The TriForce Tokens Bot - Invitation and Referral System'
-      },
-      'author': {
-        'name': msg.author.username + "'s TriForce Invite Stats"
-  					},
-  					'fields': [{
-        'name': 'Valid Invites:',
-        'value': validInvites.toString(),
-        'inline': true
-    				},
-      {
-        'name': 'Total Invites:',
-        'value': invitesNum.toString(),
-        'inline': true
-    				},
-      {
-        'name': 'Leaves:',
-        'value': removedInvites.toString(),
-        'inline': true
-    				}]
-    }
-    msg.channel.send({ embed })
-  }, 25)
 }
 
 var lastInvitesLeaderboard
@@ -954,13 +1174,13 @@ function gatherLeaderboard (msg, invites) {
             }
           }
           var user = {id: invites[i].inviter.id, name: invites[i].inviter.username, invites: invitesNum}
-          if (user.id !== '176518088575942656' && user.id !== '315905683902038017' && user.id !== '283031595722473473' && user.id !== '153981101868580864' && user.id !== '164178179802660865' && user.id !== '458543519519342594' && user.id !== '373621597699047424' && user.id !== '482548204185845782' && user.id !== '362909367508533250' && user.id !== '340981780792213504' && user.id !== '366601136305864704' && user.id !== '166382231680450560' && user.id !== '425630354263638018' && user.id !== '108332416086605824' && user.id !== '302050872383242240') {
+          if (user.id !== '488377416163786753' && user.id !== '153981101868580864' && user.id !== '164178179802660865' && user.id !== '458543519519342594' && user.id !== '373621597699047424' && user.id !== '482548204185845782' && user.id !== '362909367508533250' && user.id !== '340981780792213504' && user.id !== '366601136305864704' && user.id !== '166382231680450560' && user.id !== '425630354263638018' && user.id !== '108332416086605824' && user.id !== '302050872383242240') {
 					  sortedUsers.push(user)
           }
           i++
         } else {
           var user = {id: invites[i].inviter.id, name: invites[i].inviter.username, invites: invites[i].uses}
-          if (user.id !== '176518088575942656' && user.id !== '315905683902038017' && user.id !== '283031595722473473' && user.id !== '153981101868580864' && user.id !== '164178179802660865' && user.id !== '458543519519342594' && user.id !== '373621597699047424' && user.id !== '482548204185845782' && user.id !== '362909367508533250' && user.id !== '340981780792213504' && user.id !== '366601136305864704' && user.id !== '166382231680450560' && user.id !== '425630354263638018' && user.id !== '108332416086605824' && user.id !== '302050872383242240') {
+          if (user.id !== '488377416163786753' && user.id !== '153981101868580864' && user.id !== '164178179802660865' && user.id !== '458543519519342594' && user.id !== '373621597699047424' && user.id !== '482548204185845782' && user.id !== '362909367508533250' && user.id !== '340981780792213504' && user.id !== '366601136305864704' && user.id !== '166382231680450560' && user.id !== '425630354263638018' && user.id !== '108332416086605824' && user.id !== '302050872383242240') {
 					  sortedUsers.push(user)
           }
           i++

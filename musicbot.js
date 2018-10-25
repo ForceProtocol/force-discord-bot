@@ -18,9 +18,9 @@ var opts = {
 
 bot.on('message', msg => {
   // MSG PARTS
-  var msgParts = msg.content.split(' '),
-    command = msgParts[0].toLowerCase(),
-    parameters = msgParts.splice(1, msgParts.length)
+  var msgParts = msg.content.split(' ')
+  var command = msgParts[0].toLowerCase()
+  var parameters = msgParts.splice(1, msgParts.length)
   if (msg.guild) { 								// MUSIC BOT COMMANDS
     if (command === 'fjoin') {
       if (msg.member.voiceChannel) {

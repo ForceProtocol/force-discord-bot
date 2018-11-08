@@ -49,6 +49,12 @@ var dataStorageLocation = 'users/', /* Location of the User-Account DB, very imp
 var perViewerRewards = 0.125,
 		perFollowerReduction = 0.005
 
+// MATH GAMES
+var mathAnswer = 0
+var mathGameOn = 0
+var randomNumberOne = 0
+var randomNumberTwo = 0
+
 // INVITE BOUNTY
 var bountyLength = 604800, // In Seconds
  		bountyCheckInterval = 30000, // Milliseconds
@@ -127,6 +133,19 @@ function removeInvites (id, invites) {
       }
     }
   })
+}
+
+function startMathGame(randomNumberOne,randomNumberTwo){
+	if(lastMsg.channel.guild && lastMsg.member){
+		if(mathGameOn === 0){
+			var channelz = lastMsg.member.guild.channels.find(ch => ch.name === 'math-and-trivia➕➖❔')
+			mathAnswer = randomNumberOne * randomNumberTwo;
+			channelz.send('**A math question has appeared!**\n\nWhat is '+randomNumberOne.toString()+' x '+randomNumberTwo.toString()+'?');
+			mathGameOn = 1;
+		}else{
+			lastMsg.channel.send('A question already exists!\n\nWhat is '+randomNumberOne.toString()+' x '+randomNumberTwo.toString()+'?');
+		}
+	}
 }
 
 bot.on('guildMemberAdd', member => {
@@ -351,13 +370,19 @@ function checkTwitchUsers () {
 									channelDebug.send('**Twitch Livestream payout for '+liveStreamers[iii].username+':**\n\nEarnings this stream: '+rewards+'\nMinutes streamed: '+liveStreamers[iii].minutesStreamed+'\nHighest viewercount this stream: '+liveStreamers[iii].highestViewers+'\nGame Played: '+liveStreamers[iii].game)
 									channelDebug.send('ftip <@'+streamerID.replace("twitch.txt","")+'> '+rewards)
 									var userProfile = lastMsg.guild.members.find('id', liveStreamers[iii].id.replace("twitch.txt",""))
-									var bonusMsg = "Your twitch rewards for this stream had no bonuses applied.\n**Tip:** Streaming __Eximius: Seize the Frontline__ earns you a **4x** stream payout bonus!"
-									if (liveStreamers[iii].game.includes("Eximius")) {
-										bonusMsg = "Yuhu! Your twitch rewards for this stream were increased by **4x** because you played **Eximius: Seize the Frontline**"
+
+									if (userProfile !== null) {
+
+										var bonusMsg = "Your twitch rewards for this stream had no bonuses applied.\n**Tip:** Streaming __Eximius: Seize the Frontline__ earns you a **4x** stream payout bonus!"
+										if (liveStreamers[iii].game.includes("Eximius")) {
+											bonusMsg = "Yuhu! Your twitch rewards for this stream were increased by **4x** because you played **Eximius: Seize the Frontline**"
+										}
+										userProfile.send("Hey "+liveStreamers[iii].username+"! Your stream was great! Here's some of your statistics:\n\n**Minutes Streamed: **"+liveStreamers[iii].minutesStreamed+"\n**Highest Live-Viewer Count: **"+liveStreamers[iii].highestViewers+"\n**Game Played: **"+liveStreamers[iii].game+"\n**FORCE Earnings: **"+rewards+"\n\n"+bonusMsg)
+										console.log(liveStreamers[iii].username+" has stopped streaming after "+liveStreamers[iii].minutesStreamed+" minutes!\nEarnings: "+rewards+" FORCE\nHighest viewer count: "+liveStreamers[iii].highestViewers+" viewers\n")
+										liveStreamers[iii].id = "offline"
+									} else {
+										liveStreamers[iii].id = "offline"
 									}
-									userProfile.send("Hey "+liveStreamers[iii].username+"! Your stream was great! Here's some of your statistics:\n\n**Minutes Streamed: **"+liveStreamers[iii].minutesStreamed+"\n**Highest Live-Viewer Count: **"+liveStreamers[iii].highestViewers+"\n**Game Played: **"+liveStreamers[iii].game+"\n**FORCE Earnings: **"+rewards+"\n\n"+bonusMsg)
-									console.log(liveStreamers[iii].username+" has stopped streaming after "+liveStreamers[iii].minutesStreamed+" minutes!\nEarnings: "+rewards+" FORCE\nHighest viewer count: "+liveStreamers[iii].highestViewers+" viewers\n")
-									liveStreamers[iii].id = "offline"
 								}
 							}
 						}
@@ -511,7 +536,7 @@ bot.on('message', msg => {
   })
 })
   function processMessage (command, msg, parameters, userData, username, userID, balance){
-    // ACTIVITY TRACKING && Rains
+    // ACTIVITY TRACKING & RAINS
     var ia,
       isInList = 0,
       activeLength = activeUsers.length
@@ -626,6 +651,11 @@ bot.on('message', msg => {
           'name': 'Twitch Commands',
           'value': '**ftwitchlookup <twitch-username>** - Searches for the specified Twitch channel, displaying statistics and stream-information if live\n**ftwitch** - [Verified-Streamers-Only!] Searches for your own channel on Twitch, quicker and easier than **ftwitchlookup**',
           'inline': false
+    				},
+        {
+          'name': 'HI-LO Commands',
+          'value': '**flo <optional-bet>** - Runs a "lo" bet in the HI-LO game with a 45% win chance\n**fhi <optional-bet>** - Runs a "hi" bet in the HI-LO game with a 45% win chance',
+          'inline': false
     				}]
       }
       msg.channel.send({ embed })
@@ -637,6 +667,46 @@ bot.on('message', msg => {
       msg.reply('Rebooting!')
       setTimeout(function () { process.exit() }, 250)
     }
+
+		//MATH GAME TRIGGER CODE
+			var mathGameChance = Math.floor(Math.random() * 100) + 1;
+			randomNumberOne = Math.floor(Math.random() * 100) + 1;
+			randomNumberTwo = Math.floor(Math.random() * 100) + 1;
+			//console.log(mathGameChance);
+			if(randomNumberTwo == randomNumberOne){
+				randomNumberTwo = Math.floor(Math.random() * 100) + 1;
+			}else{
+				if(mathGameChance == 5){
+					if(mathGameOn == 0){
+						if(msg.channel.guild){
+							if(msg.author.bot == false){
+								startMathGame(randomNumberOne,randomNumberTwo);
+							}
+						}
+					}
+				}
+			}
+			if(command === mathAnswer.toString()){
+				if(mathGameOn === 1){
+					if(msg.channel.guild){
+						msg.channel.send('ftip '+msg.author+' '+(randomNumberOne/400).toFixed(4))
+						msg.reply('**Congrats!** You got the answer right :trophy:')
+						mathGameOn = 0
+					}else{
+						msg.reply('Sorry, math questions are only allowed to be inside inside Discord servers as a security measure against infinite math-game-profits.')
+					}
+				}
+			}
+			if(command === 'fstart'){
+				if(userID === '458543519519342594' || userID === '488377416163786753' || userID === '362909367508533250' || userID === '373621597699047424'){
+					if(mathGameOn === 0){
+						msg.delete()
+						startMathGame(randomNumberOne,randomNumberTwo)
+					}
+				}else{
+					msg.reply('Shhh... Admins only!')
+				}
+			}
 
     if (msg.guild) {								// USER-BASED COMMANDS
       if (command === 'fbal') {
@@ -939,6 +1009,74 @@ bot.on('message', msg => {
 			msg.reply("**Raw Livestreamer Tracking Data:**\n```\n"+JSON.stringify(liveStreamers)+"```")
 		}
 
+		if (command === 'fhi') {
+			var bet = 0.5
+			if (parameters[0] && Number(parameters[0]) >= 0.5){
+				bet = Number(parameters[0])
+			}
+			if (parameters[0] && Number(parameters[0]) < 0.5) {
+				msg.reply("The minimum bet size is **0.5 FORCE**")
+				return
+			}
+			if (balance >= bet) {
+				if (bet <= 100) {
+					var drawnNumber = Math.floor((Math.random() * 105) + 1)
+					if (drawnNumber >= 50 && drawnNumber <= 100) {
+						fs.writeFile(dataStorageLocation + userID + '.txt', userID + '::::bal:' + (balance + bet).toFixed(8) + '::::' + userData[2] + '::::' + userData[3], function (err) {
+							if (!err) {
+								msg.reply("**You Win " + bet + " FORCE!** :trophy: The dice rolled " + drawnNumber + "!")
+							}
+						})
+					} else {
+						fs.writeFile(dataStorageLocation + userID + '.txt', userID + '::::bal:' + (balance - bet).toFixed(8) + '::::' + userData[2] + '::::' + userData[3], function (err) {
+							if (!err) {
+								msg.reply("**You Lost " + bet + " FORCE!** :x: The dice rolled " + drawnNumber + "!")
+							}
+						})
+					}
+				} else {
+					msg.reply("The maximum bet size is **100 FORCE**")
+					return
+				}
+			} else {
+				msg.reply('Not enough FORCE to bet! You have **' + Number(balance.toFixed(8)).toPrecision() + ' FORCE**')
+			}
+		}
+
+		if (command === 'flo') {
+			var bet = 0.5
+			if (parameters[0] && Number(parameters[0]) >= 0.5){
+				bet = Number(parameters[0])
+			}
+			if (parameters[0] && Number(parameters[0]) < 0.5) {
+				msg.reply("The minimum bet size is **0.5 FORCE**")
+				return
+			}
+			if (balance >= bet) {
+				if (bet <= 100) {
+					var drawnNumber = Math.floor((Math.random() * 105) + 1)
+					if (drawnNumber < 50) {
+						fs.writeFile(dataStorageLocation + userID + '.txt', userID + '::::bal:' + (balance + bet).toFixed(8) + '::::' + userData[2] + '::::' + userData[3], function (err) {
+							if (!err) {
+								msg.reply("**You Win " + bet + " FORCE!** :trophy: The dice rolled " + drawnNumber + "!")
+							}
+						})
+					} else {
+						fs.writeFile(dataStorageLocation + userID + '.txt', userID + '::::bal:' + (balance - bet).toFixed(8) + '::::' + userData[2] + '::::' + userData[3], function (err) {
+							if (!err) {
+								msg.reply("**You Lost " + bet + " FORCE!** :x: The dice rolled " + drawnNumber + "!")
+							}
+						})
+					}
+				} else {
+					msg.reply("The maximum bet size is **100 FORCE**")
+					return
+				}
+			} else {
+				msg.reply('Not enough FORCE to bet! You have **' + Number(balance.toFixed(8)).toPrecision() + ' FORCE**')
+			}
+		}
+
     if (command === 'fkick') {								// ADMIN-ONLY COMMANDS
       if (userID === '458543519519342594' || userID === '488377416163786753' || userID === '362909367508533250' || userID === '373621597699047424') {
         const user = msg.mentions.users.first()
@@ -1069,7 +1207,7 @@ bot.on('message', msg => {
     }
 
     if (msg.content.includes('http') && userID !== '488377416163786753' && userID !== '164178179802660865' && userID !== '458543519519342594' && userID !== '373621597699047424' && userID !== '482548204185845782' && userID !== '362909367508533250' && userID !== '340981780792213504' && userID !== '366601136305864704' && userID !== '166382231680450560' && userID !== '425630354263638018' && userID !== '108332416086605824' && userID !== '302050872383242240') { // AUTO-MODERATION
-      var whitelistedQueries = ['youtube.com', 'youtu.be', 'youtube', 'triforce', 'force', 'raidparty', 'concord', 'eximius', 'cxd', 'github', 'google', 'twitch', 'steam', 'twitter', 't.co', 'discord', 'levelup', 'thegamewallstudios', 'giphy', 'tenor', 'bitcoin', 'btc', 'imgur', 'reddit', 'generationzero', 'wikipedia'],
+      var whitelistedQueries = ['youtube.com', 'youtu.be', 'youtube', 'triforce', 'force', 'raidparty', 'concord', 'eximius', 'cxd', 'github', 'google', 'twitch', 'steam', 'twitter', 't.co', 'discord', 'levelup', 'thegamewallstudios', 'giphy', 'tenor', 'bitcoin', 'btc', 'imgur', 'reddit', 'generationzero', 'wikipedia', 'prntscr'],
         whitelistLength = whitelistedQueries.length,
         checkNum = 0
       for (var i = 0; i <= whitelistLength; i++) {
@@ -1174,13 +1312,13 @@ function gatherLeaderboard (msg, invites) {
             }
           }
           var user = {id: invites[i].inviter.id, name: invites[i].inviter.username, invites: invitesNum}
-          if (user.id !== '488377416163786753' && user.id !== '153981101868580864' && user.id !== '164178179802660865' && user.id !== '458543519519342594' && user.id !== '373621597699047424' && user.id !== '482548204185845782' && user.id !== '362909367508533250' && user.id !== '340981780792213504' && user.id !== '366601136305864704' && user.id !== '166382231680450560' && user.id !== '425630354263638018' && user.id !== '108332416086605824' && user.id !== '302050872383242240') {
+          if (user.id !== '283031595722473473' && user.id !== '315905683902038017' && user.id !== '488377416163786753' && user.id !== '153981101868580864' && user.id !== '164178179802660865' && user.id !== '458543519519342594' && user.id !== '373621597699047424' && user.id !== '482548204185845782' && user.id !== '362909367508533250' && user.id !== '340981780792213504' && user.id !== '366601136305864704' && user.id !== '166382231680450560' && user.id !== '425630354263638018' && user.id !== '108332416086605824' && user.id !== '302050872383242240') {
 					  sortedUsers.push(user)
           }
           i++
         } else {
           var user = {id: invites[i].inviter.id, name: invites[i].inviter.username, invites: invites[i].uses}
-          if (user.id !== '488377416163786753' && user.id !== '153981101868580864' && user.id !== '164178179802660865' && user.id !== '458543519519342594' && user.id !== '373621597699047424' && user.id !== '482548204185845782' && user.id !== '362909367508533250' && user.id !== '340981780792213504' && user.id !== '366601136305864704' && user.id !== '166382231680450560' && user.id !== '425630354263638018' && user.id !== '108332416086605824' && user.id !== '302050872383242240') {
+          if (user.id !== '283031595722473473' && user.id !== '315905683902038017' && user.id !== '488377416163786753' && user.id !== '153981101868580864' && user.id !== '164178179802660865' && user.id !== '458543519519342594' && user.id !== '373621597699047424' && user.id !== '482548204185845782' && user.id !== '362909367508533250' && user.id !== '340981780792213504' && user.id !== '366601136305864704' && user.id !== '166382231680450560' && user.id !== '425630354263638018' && user.id !== '108332416086605824' && user.id !== '302050872383242240') {
 					  sortedUsers.push(user)
           }
           i++
